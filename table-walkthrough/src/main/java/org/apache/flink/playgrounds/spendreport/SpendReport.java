@@ -29,13 +29,36 @@ import static org.apache.flink.table.api.Expressions.*;
 public class SpendReport {
 
     public static Table report(Table transactions) {
-        throw new UnimplementedException();
+        /*
+        return transactions.select(
+                $("account_id"),
+                // $("transaction_time").floor(TimeIntervalUnit.HOUR).as("log_ts"),
+                // call(MyFloor.class, $("transaction_time")).as("log_ts"),
+                $("amount")
+                ).groupBy($("account_id"), $("log_ts"))
+                .select(
+                        $("account_id"),
+                        $("log_ts"),
+                        $("amount").sum().as("amount")
+                );\
+         */
+        return transactions
+                .window(Tumble.over(lit(1).hour()).on($("transaction_time")).as("log_ts"))
+                .groupBy($("account_id"), $("log_ts"))
+                .select(
+                        $("account_id"),
+                        $("log_ts").start().as("log_ts"),
+                        $("amount").sum().as("amount"));
     }
 
     public static void main(String[] args) throws Exception {
-        EnvironmentSettings settings = EnvironmentSettings.newInstance().build();
+        // set up execution environment
+        EnvironmentSettings settings = EnvironmentSettings.newInstance().inStreamingMode().build();
         TableEnvironment tEnv = TableEnvironment.create(settings);
 
+        // registering tables
+        // transaction input table
+        // Is a logical view over a Kafka topic
         tEnv.executeSql("CREATE TABLE transactions (\n" +
                 "    account_id  BIGINT,\n" +
                 "    amount      BIGINT,\n" +
@@ -49,6 +72,8 @@ public class SpendReport {
                 "    'format'    = 'csv'\n" +
                 ")");
 
+        // sink table, stores the final results
+        // underlying storage is a table in a MySql
         tEnv.executeSql("CREATE TABLE spend_report (\n" +
                 "    account_id BIGINT,\n" +
                 "    log_ts     TIMESTAMP(3),\n" +
